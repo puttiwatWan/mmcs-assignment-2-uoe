@@ -33,16 +33,13 @@ model RefuellingStation
     cen_fac_open: array(supply) of mpvar     !! binary
 
     ! can combine
-    loc_fac_type_open: array(locFacType) of mpvar  !! binary
-    loc_fac_open_at: array(customers) of mpvar     !! binary
+    loc_fac_open_at: array(customers,locFacType) of mpvar     !! binary
 
     cen_prod: array(supply, customers) of mpvar
-    loc_prod: array(locFacType) of mpvar
+    loc_prod: array(customers, locFacType) of mpvar
 
     canCover: array(customers, customers) of integer
     cover: array(customers, customers) of mpvar
-
-    total_demand: array(customers) of mpvar
   end-declarations
 
   initialisations from "Dataset1_N25.txt"
@@ -64,31 +61,28 @@ model RefuellingStation
 
   ! Constraints
   !! should be binary
-  forall(c in customers) do
-    station_open(c) is_binary
-    loc_fac_open_at(c) is_binary
-  end-do
+  forall(c in customers) station_open(c) is_binary
+  forall(c in customers, t in locFacType) loc_fac_open_at(c,t) is_binary
   forall(s in supply) cen_fac_open(s) is_binary
-  forall(t in locFacType) loc_fac_type_open(t) is_binary
   forall(c1 in customers, c2 in customers) cover(c1,c2) is_binary
 
   ! open limit
-  sum(s in supply)cen_fac_open(s) <= 3
-  sum(c in customers)loc_fac_open_at(c) <= 1
-  sum(t in locFacType)loc_fac_type_open(t) = sum(c in customers)loc_fac_open_at(c)
+  sum(s in supply) cen_fac_open(s) <= 3
+  sum(c in customers, t in locFacType) loc_fac_open_at(c,t) <= 1
 
   ! prod limit
   forall(s in supply) sum(c in customers)cen_prod(s,c) <= CenProdLimit
-  forall(t in locFacType) do
-    loc_prod(t) <= LocProdLimit(t)
-    loc_prod(t) >= MinLocProd(t)
+  forall(c in customers, t in locFacType) do
+    loc_prod(c,t) <= loc_fac_open_at(c,t) * LocProdLimit(t)
+    loc_prod(c,t) >= loc_fac_open_at(c,t) * MinLocProd(t)
   end-do
 
   ! demand
   forall(c in customers) sum(s in supply) cen_prod(s,c) <= MaxTubePerSite * TubeCap
+  forall(c2 in customers) sum(c1 in customers) cover(c1,c2) = 1  !! each station can be covered by only 1 station
+
   forall(c1 in customers) do
-    (sum(c2 in customers)(Demand(c2) * cover(c1,c2))) * station_open(c1) <= 1
-      ! sum(s in supply)cen_prod(s,c1) + loc_fac_open_at(c1) * sum(t in locFacType)(loc_fac_type_open(t) * loc_prod(t))
+    (sum(c2 in customers)(Demand(c2) * cover(c1,c2))) <= sum(s in supply)cen_prod(s,c1) + sum(t in locFacType)(loc_prod(c1, t))
   end-do
 
 
