@@ -2,6 +2,7 @@
 nbCustomers: 25
 nbSupply: 3
 nbLocalised: 2
+locFacType: ["L" "S"]
 
 Demand: [ 5997.927 6653.629 5154.747 4761.837 187.836 772.174 4404.681
 4371.787 1940.248 5344.083 6030.954 7237.152 3133.319 4103.515
@@ -91,7 +92,9 @@ SupplyLocation:[-7.662593016	84.71799962
 		-49.00558758	-93.20602036
 		-93.98345511	26.55543694  ]
 
+CenProdLimit: 200000
+LocProdLimit: [9500 5000]
+MinLocProd: [100 100]
 
-
-
-
+MaxTubePerSite: 7
+TubeCap: 1000
