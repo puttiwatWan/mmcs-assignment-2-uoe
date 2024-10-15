@@ -45,6 +45,7 @@ model RefuellingStation
     LocOpenCost: array(locFacType) of real
     !! LocProdCost is a cost per kg when producing hydrogen at a localized facility
     LocProdCost: real
+    !! CusOpenCost is a cost for opening each refuelling station
     CusOpenCost: real
 
     !! canCover tells if the first refuelling station can cover the second refuelling station (1 = can cover, 0 otherwise)
