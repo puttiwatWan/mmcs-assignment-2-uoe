@@ -45,6 +45,7 @@ model RefuellingStation
     LocOpenCost: array(locFacType) of real
     !! LocProdCost is a cost per kg when producing hydrogen at a localized facility
     LocProdCost: real
+    CusOpenCost: real
 
     !! canCover tells if the first refuelling station can cover the second refuelling station (1 = can cover, 0 otherwise)
     !! e.g. canCover(c1,c2) = 1 means that refuelling station c1 can cover for refuelling station c2
@@ -73,8 +74,8 @@ model RefuellingStation
 
   initialisations from "Dataset1_N25.txt"
     Demand DistCustomerSupply DistCustomer locFacType LocProdLimit MinLocProd CenProdLimit
-    MaxTubePerSite TubeCap CenOpenCost TubeTransCost EmptyTubeCostReduction CenProdCost 
-    LocOpenCost LocProdCost
+    MaxTubePerSite TubeCap CenOpenCost TubeTransCost EmptyTubeCostReduction CenProdCost
+    LocOpenCost LocProdCost CusOpenCost
   end-initialisations
 
   !! Calculate the cover range for each refuelling station
@@ -90,6 +91,7 @@ model RefuellingStation
   !! The objective function is to minimized the cost. The total cost can be calculated as:
   !! total_cost = cost for opening each cenralized facility +
   !!              cost for opening each localized facility +
+  !!              cost for opening each refuelling station +
   !!              cost for producing at centralized facilities +
   !!              cost for producing at localized facilities +
   !!              cost for tubes transportation back and forth
@@ -98,6 +100,7 @@ model RefuellingStation
   !! TubeTransCost + (1 - EmptyTubeCostReduction) * TubeTransCost = (2 - EmptyTubeCostReduction) * TubeTransCost
   total_cost := sum(s in supply) (cen_fac_open(s) * CenOpenCost) +
                 sum(c in customers, t in locFacType) (loc_fac_open_at(c,t) * LocOpenCost(t)) +
+                sum(c in customers) (station_open(c) * CusOpenCost) +
                 sum(c in customers, s in supply) (cen_prod(c,s) * CenProdCost) +
                 sum(c in customers, t in locFacType) (loc_prod(c,t) * LocProdCost) +
                 sum(c in customers, s in supply) ((cen_prod(c,s)/TubeCap) * DistCustomerSupply(c,s) * (2 - EmptyTubeCostReduction) * TubeTransCost)
