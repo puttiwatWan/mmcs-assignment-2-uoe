@@ -13,63 +13,63 @@ model RefuellingStation
   declarations
     customers = 1..nbCustomers  !! a range of refuelling stations
     supply = 1..nbSupply        !! a range of centralised facilities
-    locFacType: set of string   !! Types of localized facilities
+    locFacType: set of string   !! types of localized facilities
 
-    !! Demand is the demand for each refuelling station
+    !! Demand is the demand for each refuelling station.
     Demand: array(customers) of real
-    !! DistCustomerSupply is the distance between each refuelling station and each centralized facility
+    !! DistCustomerSupply is the distance between each refuelling station and each centralized facility.
     DistCustomerSupply: array(customers, supply) of real
-    !! DistCustomer is the distance between each refuelling station
+    !! DistCustomer is the distance between each refuelling station.
     DistCustomer: array(customers, customers) of real
 
-    !! LocProdLimit is the production limit for each type of localized facilities
+    !! LocProdLimit is the production limit for each type of localized facilities.
     LocProdLimit: array(locFacType) of real
-    !! MinLocProd is the minimum production required if the localized facility is open
+    !! MinLocProd is the minimum production required if the localized facility is open.
     MinLocProd: array(locFacType) of real
-    !! CenProdLimit is the production limit for each centralized facility
+    !! CenProdLimit is the production limit for each centralized facility.
     CenProdLimit: real
-    !! MaxTubePerSite is the mamimum number of tubes that can be used to transport hydrogen to each refuelling station
+    !! MaxTubePerSite is the mamimum number of tubes that can be used to transport hydrogen to each refuelling station.
     MaxTubePerSite: integer
-    !! TubeCap is the capacity of each tube
+    !! TubeCap is the capacity of each tube.
     TubeCap: real
 
-    !! CenOpenCost is a cost for opening each centralized facility
+    !! CenOpenCost is a cost for opening each centralized facility.
     CenOpenCost: real
-    !! TubeTransCost is a cost per km for transporting each tube
+    !! TubeTransCost is a cost per km for transporting each tube.
     TubeTransCost: real
-    !! EmptyTubeCostReduction is a reduction in cost when transporting an empty tube
+    !! EmptyTubeCostReduction is a reduction in cost when transporting an empty tube.
     EmptyTubeCostReduction: real
-    !! CenProdCost is a cost per kg when producing hydrogen at a centralized facility
+    !! CenProdCost is a cost per kg when producing hydrogen at a centralized facility.
     CenProdCost: real
-    !! LocOpenCost is a cost for opening each type of localized facilities
+    !! LocOpenCost is a cost for opening each type of localized facilities.
     LocOpenCost: array(locFacType) of real
-    !! LocProdCost is a cost per kg when producing hydrogen at a localized facility
+    !! LocProdCost is a cost per kg when producing hydrogen at a localized facility.
     LocProdCost: real
-    !! CusOpenCost is a cost for opening each refuelling station
+    !! CusOpenCost is a cost for opening each refuelling station.
     CusOpenCost: real
 
-    !! canCover tells if the first refuelling station can cover the second refuelling station (1 = can cover, 0 otherwise)
-    !! e.g. canCover(c1,c2) = 1 means that refuelling station c1 can cover for refuelling station c2
+    !! canCover tells if the first refuelling station can cover the second refuelling station (1 = can cover, 0 otherwise).
+    !! e.g. canCover(c1,c2) = 1 means that refuelling station c1 can cover for refuelling station c2.
     canCover: array(customers, customers) of integer
 
-    !! cover is whether the first refuelling station is covering the second refuelling station (1 = cover, 0 otherwise)
-    !! e.g. cover(c1,c2) = 1 means that refuelling station c1 is covering for refuelling station c2
+    !! cover is whether the first refuelling station is covering the second refuelling station (1 = cover, 0 otherwise).
+    !! e.g. cover(c1,c2) = 1 means that refuelling station c1 is covering for refuelling station c2.
     cover: array(customers, customers) of mpvar
 
-    !! station_open tells which stations are open (1 = open, 0 = closed)
+    !! station_open tells which stations are open (1 = open, 0 = closed).
     station_open: array(customers) of mpvar
 
-    !! cen_fac_open tells whether each centralized facility is open (1 = open, 0 = closed)
+    !! cen_fac_open tells whether each centralized facility is open (1 = open, 0 = closed).
     cen_fac_open: array(supply) of mpvar
-    !! loc_fac_open_at tells whether that refuelling station is used as a localized facility
+    !! loc_fac_open_at tells whether that refuelling station is used as a localized facility.
     !! e.g. loc_fac_open_at(c1, "L") = 1 means that the large localized facility is open at the
     !! refuelling station c1.
     loc_fac_open_at: array(customers, locFacType) of mpvar
 
     !! cen_prod tells the amount of hydrogen that is transported from each centralized facility
-    !! to each refuelling station
+    !! to each refuelling station.
     cen_prod: array(customers, supply) of mpvar
-    !! loc_prod tells the amount of hydrogen that is produced at the refuelling station
+    !! loc_prod tells the amount of hydrogen that is produced at the refuelling station.
     loc_prod: array(customers, locFacType) of mpvar
   end-declarations
 
@@ -93,8 +93,8 @@ model RefuellingStation
   !! total_cost = cost for opening each cenralized facility +
   !!              cost for opening each localized facility +
   !!              cost for opening each refuelling station +
-  !!              cost for producing at centralized facilities +
-  !!              cost for producing at localized facilities +
+  !!              cost for producing each kg at centralized facilities +
+  !!              cost for producing each kg at localized facilities +
   !!              cost for tubes transportation back and forth
   !! Noted that the (2 - EmptyTubeCostReduction) is for calculating back and forth. When delivery, the cost is just TubeTransCost.
   !! When coming back (with an empty tube), the cost is (1 - EmptyTubeCostReduction) * TubeTransCost. Therefore, combining both,
@@ -122,8 +122,8 @@ model RefuellingStation
   !! Any centralized facilities can be open or closed
   sum(s in supply) cen_fac_open(s) <= nbSupply
 
-  !! If open, each refuelling station can only open either a large or small localized facility (or
-  !! not open at all).
+  !! If the localized facility is opened, each refuelling station can only open either a large or
+  !! small localized facility.
   forall(c in customers) sum(t in locFacType) loc_fac_open_at(c,t) <= 1
 
   !! This is a production limit on how much each open centralized facility can produce.
@@ -152,5 +152,6 @@ model RefuellingStation
   minimize(total_cost)
   writeln("End running model")
 
-  writeln(getobjval)
+  !! ==================== Printing Results ====================
+  writeln("The total cost is ", strfmt(getobjval, 0, 2), " £.")
 end-model
