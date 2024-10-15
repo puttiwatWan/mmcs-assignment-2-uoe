@@ -4,50 +4,80 @@ model RefuellingStation
   declarations
     nbCustomers: integer  !! number of refuelling stations
     nbSupply: integer     !! number of centralised facilities
-    nbLocalised: integer  !! number of localised facility type
   end-declarations
 
   initialisations from "Dataset1_N25.txt"
-	  nbCustomers nbSupply nbLocalised
+	  nbCustomers nbSupply
   end-initialisations
 
   declarations
-    customers = 1..nbCustomers  !! range of refuelling stations
-    supply = 1..nbSupply        !! range of centralised facilities
-    locationPoint = 1..2        !! Latitude and longigude
-    locFacType: set of string
+    customers = 1..nbCustomers  !! a range of refuelling stations
+    supply = 1..nbSupply        !! a range of centralised facilities
+    locFacType: set of string   !! Types of localized facilities
 
+    !! Demand is the demand for each refuelling station
     Demand: array(customers) of real
+    !! DistCustomerSupply is the distance between each refuelling station and each centralized facility
     DistCustomerSupply: array(customers, supply) of real
+    !! DistCustomer is the distance between each refuelling station
     DistCustomer: array(customers, customers) of real
-    SiteLocation: array(customers, locationPoint) of real
-    SupplyLocation: array(supply, locationPoint) of real
 
+    !! LocProdLimit is the production limit for each type of localized facilities
     LocProdLimit: array(locFacType) of real
+    !! MinLocProd is the minimum production required if the localized facility is open
     MinLocProd: array(locFacType) of real
+    !! CenProdLimit is the production limit for each centralized facility
     CenProdLimit: real
+    !! MaxTubePerSite is the mamimum number of tubes that can be used to transport hydrogen to each refuelling station
     MaxTubePerSite: integer
+    !! TubeCap is the capacity of each tube
     TubeCap: real
 
-    station_open: array(customers) of mpvar  !! binary
-    cen_fac_open: array(supply) of mpvar     !! binary
+    !! CenOpenCost is a cost for opening each centralized facility
+    CenOpenCost: real
+    !! TubeTransCost is a cost per km for transporting each tube
+    TubeTransCost: real
+    !! EmptyTubeCostReduction is a reduction in cost when transporting an empty tube
+    EmptyTubeCostReduction: real
+    !! CenProdCost is a cost per kg when producing hydrogen at a centralized facility
+    CenProdCost: real
+    !! LocOpenCost is a cost for opening each type of localized facilities
+    LocOpenCost: array(locFacType) of real
+    !! LocProdCost is a cost per kg when producing hydrogen at a localized facility
+    LocProdCost: real
 
-    ! can combine
-    loc_fac_open_at: array(customers,locFacType) of mpvar     !! binary
-
-    cen_prod: array(supply, customers) of mpvar
-    loc_prod: array(customers, locFacType) of mpvar
-
+    !! canCover tells if the first refuelling station can cover the second refuelling station (1 = can cover, 0 otherwise)
+    !! e.g. canCover(c1,c2) = 1 means that refuelling station c1 can cover for refuelling station c2
     canCover: array(customers, customers) of integer
+
+    !! cover is whether the first refuelling station is covering the second refuelling station (1 = cover, 0 otherwise)
+    !! e.g. cover(c1,c2) = 1 means that refuelling station c1 is covering for refuelling station c2
     cover: array(customers, customers) of mpvar
+
+    !! station_open tells which stations are open (1 = open, 0 = closed)
+    station_open: array(customers) of mpvar
+
+    !! cen_fac_open tells whether each centralized facility is open (1 = open, 0 = closed)
+    cen_fac_open: array(supply) of mpvar
+    !! loc_fac_open_at tells whether that refuelling station is used as a localized facility
+    !! e.g. loc_fac_open_at(c1, "L") = 1 means that the large localized facility is open at the
+    !! refuelling station c1.
+    loc_fac_open_at: array(customers, locFacType) of mpvar
+
+    !! cen_prod tells the amount of hydrogen that is transported from each centralized facility
+    !! to each refuelling station
+    cen_prod: array(customers, supply) of mpvar
+    !! loc_prod tells the amount of hydrogen that is produced at the refuelling station
+    loc_prod: array(customers, locFacType) of mpvar
   end-declarations
 
   initialisations from "Dataset1_N25.txt"
-    Demand DistCustomerSupply DistCustomer SiteLocation SupplyLocation locFacType
-    LocProdLimit MinLocProd CenProdLimit MaxTubePerSite TubeCap
+    Demand DistCustomerSupply DistCustomer locFacType LocProdLimit MinLocProd CenProdLimit
+    MaxTubePerSite TubeCap CenOpenCost TubeTransCost EmptyTubeCostReduction CenProdCost 
+    LocOpenCost LocProdCost
   end-initialisations
 
-  ! calculate cover range for each customer
+  !! Calculate the cover range for each refuelling station
   forall(c1 in customers, c2 in customers) do
     if(DistCustomer(c1,c2) <= 20) then
       canCover(c1,c2) := 1
@@ -56,37 +86,67 @@ model RefuellingStation
     end-if
   end-do
 
-  ! Objective function
+  !! ==================== Objective function ====================
+  !! The objective function is to minimized the cost. The total cost can be calculated as:
+  !! total_cost = cost for opening each cenralized facility +
+  !!              cost for opening each localized facility +
+  !!              cost for producing at centralized facilities +
+  !!              cost for producing at localized facilities +
+  !!              cost for tubes transportation back and forth
+  !! Noted that the (2 - EmptyTubeCostReduction) is for calculating back and forth. When delivery, the cost is just TubeTransCost.
+  !! When coming back (with an empty tube), the cost is (1 - EmptyTubeCostReduction) * TubeTransCost. Therefore, combining both,
+  !! TubeTransCost + (1 - EmptyTubeCostReduction) * TubeTransCost = (2 - EmptyTubeCostReduction) * TubeTransCost
+  total_cost := sum(s in supply) (cen_fac_open(s) * CenOpenCost) +
+                sum(c in customers, t in locFacType) (loc_fac_open_at(c,t) * LocOpenCost(t)) +
+                sum(c in customers, s in supply) (cen_prod(c,s) * CenProdCost) +
+                sum(c in customers, t in locFacType) (loc_prod(c,t) * LocProdCost) +
+                sum(c in customers, s in supply) ((cen_prod(c,s)/TubeCap) * DistCustomerSupply(c,s) * (2 - EmptyTubeCostReduction) * TubeTransCost)
 
-
-  ! Constraints
-  !! should be binary
+  !! ==================== Constraints ====================
+  !! Each of these variables should be binary
   forall(c in customers) station_open(c) is_binary
-  forall(c in customers, t in locFacType) loc_fac_open_at(c,t) is_binary
   forall(s in supply) cen_fac_open(s) is_binary
   forall(c1 in customers, c2 in customers) cover(c1,c2) is_binary
+  forall(c in customers, t in locFacType) loc_fac_open_at(c,t) is_binary
 
-  ! open limit
-  sum(s in supply) cen_fac_open(s) <= 3
-  sum(c in customers, t in locFacType) loc_fac_open_at(c,t) <= 1
+  !! Each refuelling station can be covered only once by a coverable refuelling station.
+  forall(c2 in customers) sum(c1 in customers) cover(c1,c2) * canCover(c1,c2) = 1
 
-  ! prod limit
-  forall(s in supply) sum(c in customers)cen_prod(s,c) <= CenProdLimit
+  !! Each station can be covered only by an open station
+  forall(c1 in customers, c2 in customers) cover(c1,c2) <= station_open(c1)
+
+  !! Any centralized facilities can be open or closed
+  sum(s in supply) cen_fac_open(s) <= nbSupply
+
+  !! If open, each refuelling station can only open either a large or small localized facility (or
+  !! not open at all).
+  forall(c in customers) sum(t in locFacType) loc_fac_open_at(c,t) <= 1
+
+  !! This is a production limit on how much each open centralized facility can produce.
+  forall(s in supply) sum(c in customers) cen_prod(c,s) <= cen_fac_open(s) * CenProdLimit
+
+  !! Each refuelling station cannot receive the produced hydrogen from each centralized facility
+  !! more than the combined capacity of all tubes that can be transported to each refuelling station.
+  forall(c in customers) sum(s in supply) cen_prod(c,s) <= MaxTubePerSite * TubeCap
+
+  !! Each localized facility has a minimum and maximum production limit for each type.
+  !! loc_fac_open_at is used to apply the constraint only if the localized facility is open
+  !! at the refuelling station c.
   forall(c in customers, t in locFacType) do
     loc_prod(c,t) <= loc_fac_open_at(c,t) * LocProdLimit(t)
     loc_prod(c,t) >= loc_fac_open_at(c,t) * MinLocProd(t)
   end-do
 
-  ! demand
-  forall(c in customers) sum(s in supply) cen_prod(s,c) <= MaxTubePerSite * TubeCap
-  forall(c2 in customers) sum(c1 in customers) cover(c1,c2) = 1  !! each station can be covered by only 1 station
-
-  forall(c1 in customers) do
-    (sum(c2 in customers)(Demand(c2) * cover(c1,c2))) <= sum(s in supply)cen_prod(s,c1) + sum(t in locFacType)(loc_prod(c1, t))
-  end-do
+  !! The total demand of each refuelling station (own demand + covered stations' demand) should not exceed the
+  !! total amount of the production from both centralized and localized facilities that can be transported to
+  !! that refuelling station.
+  forall(c1 in customers)
+    (sum(c2 in customers)(Demand(c2) * cover(c1,c2))) <= sum(s in supply) cen_prod(c1,s) + sum(t in locFacType) loc_prod(c1, t)
 
 
   writeln("Begin running model")
-  !...
+  minimize(total_cost)
   writeln("End running model")
+
+  writeln(getobjval)
 end-model

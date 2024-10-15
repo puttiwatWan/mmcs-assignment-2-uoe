@@ -98,3 +98,11 @@ MinLocProd: [100 100]
 
 MaxTubePerSite: 7
 TubeCap: 1000
+
+CenOpenCost: 25000
+TubeTransCost: 40  !! £ per km
+EmptyTubeCostReduction: 0.75
+CenProdCost: 2 !! £ per kg
+
+LocOpenCost: [6000 3500]
+LocProdCost: 6 !! £ per kg
