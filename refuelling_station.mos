@@ -1,5 +1,5 @@
 model RefuellingStation
-  uses "mmxprs", "mmquad"
+  uses "mmxprs"
 
   declarations
     nbCustomers: integer  !! number of refuelling stations
@@ -69,6 +69,8 @@ model RefuellingStation
     !! cen_prod tells the amount of hydrogen that is transported from each centralized facility
     !! to each refuelling station.
     cen_prod: array(customers, supply) of mpvar
+    !! n_tubes is a number of tubes needed to use to transport from each centralized facility to each station
+    n_tubes: array(customers, supply) of mpvar
     !! loc_prod tells the amount of hydrogen that is produced at the refuelling station.
     loc_prod: array(customers, locFacType) of mpvar
   end-declarations
@@ -96,15 +98,15 @@ model RefuellingStation
   !!              cost for producing each kg at centralized facilities +
   !!              cost for producing each kg at localized facilities +
   !!              cost for tubes transportation back and forth
-  !! Noted that the (2 - EmptyTubeCostReduction) is for calculating back and forth. When delivery, the cost is just TubeTransCost.
-  !! When coming back (with an empty tube), the cost is (1 - EmptyTubeCostReduction) * TubeTransCost. Therefore, combining both,
-  !! TubeTransCost + (1 - EmptyTubeCostReduction) * TubeTransCost = (2 - EmptyTubeCostReduction) * TubeTransCost
   total_cost := sum(s in supply) (cen_fac_open(s) * CenOpenCost) +
                 sum(c in customers, t in locFacType) (loc_fac_open_at(c,t) * LocOpenCost(t)) +
                 sum(c in customers) (station_open(c) * CusOpenCost) +
                 sum(c in customers, s in supply) (cen_prod(c,s) * CenProdCost) +
                 sum(c in customers, t in locFacType) (loc_prod(c,t) * LocProdCost) +
-                sum(c in customers, s in supply) ((cen_prod(c,s)/TubeCap) * DistCustomerSupply(c,s) * (2 - EmptyTubeCostReduction) * TubeTransCost)
+                sum(c in customers, s in supply) (n_tubes(c,s) * DistCustomerSupply(c,s) * (2 - EmptyTubeCostReduction) * TubeTransCost)
+  !! Noted that the (2 - EmptyTubeCostReduction) is for calculating back and forth. When delivery, the cost is just TubeTransCost.
+  !! When coming back (with an empty tube), the cost is (1 - EmptyTubeCostReduction) * TubeTransCost. Therefore, combining both,
+  !! TubeTransCost + (1 - EmptyTubeCostReduction) * TubeTransCost = (2 - EmptyTubeCostReduction) * TubeTransCost
 
   !! ==================== Constraints ====================
   !! Each of these variables should be binary
@@ -113,7 +115,10 @@ model RefuellingStation
   forall(c1 in customers, c2 in customers) cover(c1,c2) is_binary
   forall(c in customers, t in locFacType) loc_fac_open_at(c,t) is_binary
 
-  !! Each refuelling station can be covered only once by a coverable refuelling station.
+  !! Number of tubes used needs to be an integer
+  forall(c in customers, s in supply) n_tubes(c,s) is_integer
+
+  !! Each refuelling station can be covered only once by a capable refuelling station.
   forall(c2 in customers) sum(c1 in customers) cover(c1,c2) * canCover(c1,c2) = 1
 
   !! Each station can be covered only by an open station
@@ -125,13 +130,21 @@ model RefuellingStation
   !! If the localized facility is opened, each refuelling station can only open either a large or
   !! small localized facility.
   forall(c in customers) sum(t in locFacType) loc_fac_open_at(c,t) <= 1
+  
+  !! Each localized facility can only be opened at the opened station
+  forall(c in customers, t in locFacType) loc_fac_open_at(c,t) <= station_open(c)
 
   !! This is a production limit on how much each open centralized facility can produce.
   forall(s in supply) sum(c in customers) cen_prod(c,s) <= cen_fac_open(s) * CenProdLimit
 
-  !! Each refuelling station cannot receive the produced hydrogen from each centralized facility
-  !! more than the combined capacity of all tubes that can be transported to each refuelling station.
-  forall(c in customers) sum(s in supply) cen_prod(c,s) <= MaxTubePerSite * TubeCap
+  !! The number of tubes used for each station needs to be a total production in each centralized facility
+  !! rounded up to the nearest multiple of TubeCap and then divided by the TubeCap.
+  !! E.g. Let the TubeCap be 1000. If the demand is 4600, n_tubes should be 5.
+  forall(c in customers, s in supply) n_tubes(c,s) * TubeCap >= cen_prod(c,s)
+
+  !! The number of tubes used for each station cannot exceed the maximum limit.
+  !! E.g. If MaxTubePerSite = 7, each station can only be delivered by no more than 7 tubes.
+  forall(c in customers) sum(s in supply) n_tubes(c,s) <= MaxTubePerSite
 
   !! Each localized facility has a minimum and maximum production limit for each type.
   !! loc_fac_open_at is used to apply the constraint only if the localized facility is open
@@ -145,13 +158,60 @@ model RefuellingStation
   !! total amount of the production from both centralized and localized facilities that can be transported to
   !! that refuelling station.
   forall(c1 in customers)
-    (sum(c2 in customers)(Demand(c2) * cover(c1,c2))) <= sum(s in supply) cen_prod(c1,s) + sum(t in locFacType) loc_prod(c1, t)
-
+    (sum(c2 in customers)(Demand(c2) * cover(c1,c2))) <= (sum(s in supply) cen_prod(c1,s)) + (sum(t in locFacType) loc_prod(c1, t))
 
   writeln("Begin running model")
   minimize(total_cost)
   writeln("End running model")
 
   !! ==================== Printing Results ====================
+  writeln("==================== Printing Results ====================")
   writeln("The total cost is ", strfmt(getobjval, 0, 2), " £.")
+
+  writeln
+  forall(c in customers) do
+    if (c in 1..9) then
+      write("C0", c, " | ")
+    else
+      write("C", c, " | ")
+    end-if
+    forall(s in supply) do
+      write(strfmt(getsol(cen_prod(c,s)), 14), " | ")
+    end-do
+    writeln
+    writeln("-------------------------------------------------------")
+  end-do
+
+  writeln
+  forall(c in customers) do
+    if (c in 1..9) then
+      write("C0", c, " | ")
+    else
+      write("C", c, " | ")
+    end-if
+    forall(t in locFacType) do
+      write(strfmt(getsol(loc_prod(c,t)), 14), " | ")
+    end-do
+    writeln
+    writeln("---------------------------------------")
+  end-do
+
+  writeln
+  forall(c1 in customers) do
+    if (c1 in 1..9) then
+      write("C0", c1, ": ")
+    else
+      write("C", c1, ": ")
+    end-if
+    forall(c2 in customers) do
+      if(getsol(cover(c1,c2)) = 1) then
+        write("C", c2, " ")
+      end-if
+    end-do
+    writeln
+  end-do
+
+  forall(s in supply) do
+    writeln("Total prod for C", s, " is ", sum(c in customers) getsol(cen_prod(c,s)))
+  end-do
 end-model
