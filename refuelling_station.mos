@@ -127,12 +127,8 @@ model RefuellingStation
   !! Any centralized facilities can be open or closed
   sum(s in supply) cen_fac_open(s) <= nbSupply
 
-  !! If the localized facility is opened, each refuelling station can only open either a large or
-  !! small localized facility.
-  forall(c in customers) sum(t in locFacType) loc_fac_open_at(c,t) <= 1
-  
-  !! Each localized facility can only be opened at the opened station
-  forall(c in customers, t in locFacType) loc_fac_open_at(c,t) <= station_open(c)
+  !! Each opened refuelling station can only open either a large or small localized facility if needed.
+  forall(c in customers) sum(t in locFacType) loc_fac_open_at(c,t) <= station_open(c)
 
   !! This is a production limit on how much each open centralized facility can produce.
   forall(s in supply) sum(c in customers) cen_prod(c,s) <= cen_fac_open(s) * CenProdLimit
@@ -185,24 +181,58 @@ model RefuellingStation
   writeln
   forall(c in customers) do
     if (c in 1..9) then
-      write("C0", c, " | ")
+      write("C0", c, " ")
     else
-      write("C", c, " | ")
+      write("C", c, " ")
     end-if
+    write("(", getsol(loc_fac_open_at(c,"L")), ",", getsol(loc_fac_open_at(c,"S")),")")
+    write(" | ")
     forall(t in locFacType) do
       write(strfmt(getsol(loc_prod(c,t)), 14), " | ")
     end-do
     writeln
-    writeln("---------------------------------------")
+    writeln("---------------------------------------------")
+  end-do
+
+  writeln
+  writeln("Loc Fac Open At")
+  forall(c in customers) do
+    if (c in 1..9) then
+      write("C0", c)
+    else
+      write("C", c)
+    end-if
+    write(" (", getsol(station_open(c)), ") | ")
+    forall(t in locFacType) do
+      write(getsol(loc_fac_open_at(c,t)), " | ")
+    end-do
+    writeln
+    writeln("-----------------")
+  end-do
+
+  writeln
+  forall(c in customers) do
+    if (c in 1..9) then
+      write("C0", c)
+    else
+      write("C", c)
+    end-if
+    write(" | ")
+    forall(s in supply) do
+      write(getsol(n_tubes(c,s)), " | ")
+    end-do
+    writeln
+    writeln("-----------------")
   end-do
 
   writeln
   forall(c1 in customers) do
     if (c1 in 1..9) then
-      write("C0", c1, ": ")
+      write("C0", c1)
     else
-      write("C", c1, ": ")
+      write("C", c1)
     end-if
+    write(" (", getsol(station_open(c1)), "): ")
     forall(c2 in customers) do
       if(getsol(cover(c1,c2)) = 1) then
         write("C", c2, " ")
