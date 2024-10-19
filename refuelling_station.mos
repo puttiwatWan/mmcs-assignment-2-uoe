@@ -96,6 +96,7 @@ model RefuellingStation
     end-if
   end-do
 
+
   !! ==================== Objective function ====================
   !! The objective function is to minimized the cost. The total cost can be calculated as:
   !! total_cost = cost for opening each cenralized facility +
@@ -113,6 +114,7 @@ model RefuellingStation
   !! Noted that the (2 - EmptyTubeCostReduction) is for calculating back and forth. When delivery, the cost is just TubeTransCost.
   !! When coming back (with an empty tube), the cost is (1 - EmptyTubeCostReduction) * TubeTransCost. Therefore, combining both,
   !! TubeTransCost + (1 - EmptyTubeCostReduction) * TubeTransCost = (2 - EmptyTubeCostReduction) * TubeTransCost
+
 
   !! ==================== Constraints ====================
   !! Each of these variables should be binary
@@ -162,10 +164,12 @@ model RefuellingStation
   forall(c1 in customers)
     (sum(c2 in customers)(Demand(c2) * cover(c1,c2))) <= (sum(s in supply) cen_prod(c1,s)) + (sum(t in locFacType) loc_prod(c1, t))
 
+
   !! ==================== Optimize ====================
   writeln("Begin running model")
   minimize(total_cost)
   writeln("End running model")
+
 
   !! ==================== Forwardig Procedures ====================
   forward procedure PrintTitle(title:string)
@@ -175,6 +179,7 @@ model RefuellingStation
   forward procedure WriteResultsToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:set of string, objToReadFrom:array(range, set of string) of mpvar, print_int:boolean)
   forward procedure WriteDataToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:range, objToReadFrom:array(range, range) of real)
   forward procedure WriteDataToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:range, objToReadFrom:array(range, range) of integer)
+
 
   !! ==================== Printing Results ====================
   writeln("==================== Printing Results ====================")
@@ -224,6 +229,7 @@ model RefuellingStation
   PrintResults("Number of tubes used from each facility to each refuelling station",
                 headers4, "c", customers, supply, n_tubes, true)
 
+
   !! =================== Writing results to a csv format ===================
   customer_header := "Customer,"
   forall(c in customers) customer_header := customer_header + "c" + c + ","
@@ -240,6 +246,7 @@ model RefuellingStation
   WriteResultsToCSV("Customer,Cen1,Cen2,Cen3", "results/cen_prod.csv", "c", customers, supply, cen_prod, false)
   WriteResultsToCSV("Customer,LocLarge,LocSmall", "results/loc_prod.csv", "c", customers, locFacType, loc_prod, false)
   WriteResultsToCSV("Customer,LocLarge,LocSmall", "results/loc_open_at.csv", "c", customers, locFacType, loc_fac_open_at, true)
+
 
   !! =================== Writing given data to a csv format ===================
   WriteDataToCSV("Customer,Cen1,Cen2,Cen3", "data/cust_supply_dist.csv", "c", customers, supply, DistCustomerSupply)
