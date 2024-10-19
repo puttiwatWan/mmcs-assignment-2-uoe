@@ -14,6 +14,12 @@ model RefuellingStation
     customers = 1..nbCustomers  !! a range of refuelling stations
     supply = 1..nbSupply        !! a range of centralised facilities
     locFacType: set of string   !! types of localized facilities
+    locationPoint = 1..2
+
+    !! SiteLocation is a location in latitude and longigude of each refuelling station (used for printing to csv)
+    SiteLocation: array(customers, locationPoint) of real
+    !! SupplyLocation is a location in latitude and longigude of each centralized facility (used for printing to csv)
+    SupplyLocation: array(supply, locationPoint) of real
 
     !! Demand is the demand for each refuelling station.
     Demand: array(customers) of real
@@ -78,7 +84,7 @@ model RefuellingStation
   initialisations from "Dataset1_N25.txt"
     Demand DistCustomerSupply DistCustomer locFacType LocProdLimit MinLocProd CenProdLimit
     MaxTubePerSite TubeCap CenOpenCost TubeTransCost EmptyTubeCostReduction CenProdCost
-    LocOpenCost LocProdCost CusOpenCost
+    LocOpenCost LocProdCost CusOpenCost SiteLocation SupplyLocation
   end-initialisations
 
   !! Calculate the cover range for each refuelling station
@@ -156,92 +162,260 @@ model RefuellingStation
   forall(c1 in customers)
     (sum(c2 in customers)(Demand(c2) * cover(c1,c2))) <= (sum(s in supply) cen_prod(c1,s)) + (sum(t in locFacType) loc_prod(c1, t))
 
+  !! ==================== Optimize ====================
   writeln("Begin running model")
   minimize(total_cost)
   writeln("End running model")
 
+  !! ==================== Forwardig Procedures ====================
+  forward procedure PrintTitle(title:string)
+  forward procedure PrintResults(title:string, header:array(range) of string, row_prefix:string, first_iter:range, sec_iter:range, objToPrint:array(range, range) of mpvar, print_int:boolean)
+  forward procedure PrintResults(title:string, header:array(range) of string, row_prefix:string, first_iter:range, sec_iter:set of string, objToPrint:array(range, set of string) of mpvar, print_int:boolean)
+  forward procedure WriteResultsToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:range, objToReadFrom:array(range, range) of mpvar, print_int:boolean)
+  forward procedure WriteResultsToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:set of string, objToReadFrom:array(range, set of string) of mpvar, print_int:boolean)
+  forward procedure WriteDataToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:range, objToReadFrom:array(range, range) of real)
+  forward procedure WriteDataToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:range, objToReadFrom:array(range, range) of integer)
+
   !! ==================== Printing Results ====================
   writeln("==================== Printing Results ====================")
+  writeln
   writeln("The total cost is ", strfmt(getobjval, 0, 2), " £.")
-
   writeln
-  forall(c in customers) do
-    if (c in 1..9) then
-      write("C0", c, " | ")
-    else
-      write("C", c, " | ")
-    end-if
-    forall(s in supply) do
-      write(strfmt(getsol(cen_prod(c,s)), 14), " | ")
-    end-do
-    writeln
-    writeln("-------------------------------------------------------")
-  end-do
 
-  writeln
-  forall(c in customers) do
-    if (c in 1..9) then
-      write("C0", c, " ")
-    else
-      write("C", c, " ")
-    end-if
-    write("(", getsol(loc_fac_open_at(c,"L")), ",", getsol(loc_fac_open_at(c,"S")),")")
-    write(" | ")
-    forall(t in locFacType) do
-      write(strfmt(getsol(loc_prod(c,t)), 14), " | ")
-    end-do
-    writeln
-    writeln("---------------------------------------------")
-  end-do
+  declarations
+    headers3: array(1..3) of string
+    headers4: array(1..4) of string
+  end-declarations
+  
+  headers4(1) := "Customer"
+  headers4(2) := "Cen1"
+  headers4(3) := "Cen2"
+  headers4(4) := "Cen3"
 
-  writeln
-  writeln("Loc Fac Open At")
-  forall(c in customers) do
-    if (c in 1..9) then
-      write("C0", c)
-    else
-      write("C", c)
-    end-if
-    write(" (", getsol(station_open(c)), ") | ")
-    forall(t in locFacType) do
-      write(getsol(loc_fac_open_at(c,t)), " | ")
-    end-do
-    writeln
-    writeln("-----------------")
-  end-do
+  !! Print total production sending from centralized facilities to each refuelling station
+  PrintResults("Total production from centralized facilities to each refuelling station",
+                headers4, "c", customers, supply, cen_prod, false)
 
+  headers3(1) := "Customer"
+  headers3(2) := "Loc (Large)"
+  headers3(3) := "Loc (Small)"
+  
+  !! Print total production in each localized facilities
+  PrintResults("Total production in localized facilities",
+                headers3, "c", customers, locFacType, loc_prod, false)
+  
+  !! Print which refuelling station needs to open a localized facility
   writeln
-  forall(c in customers) do
-    if (c in 1..9) then
-      write("C0", c)
-    else
-      write("C", c)
-    end-if
-    write(" | ")
-    forall(s in supply) do
-      write(getsol(n_tubes(c,s)), " | ")
-    end-do
-    writeln
-    writeln("-----------------")
-  end-do
-
-  writeln
-  forall(c1 in customers) do
-    if (c1 in 1..9) then
-      write("C0", c1)
-    else
-      write("C", c1)
-    end-if
-    write(" (", getsol(station_open(c1)), "): ")
-    forall(c2 in customers) do
-      if(getsol(cover(c1,c2)) = 1) then
-        write("C", c2, " ")
+  PrintTitle("Localized Facility Opened At")
+  forall(t in locFacType) do
+    forall(c in customers) do
+      if (getsol(loc_fac_open_at(c,t)) <> 0) then
+          type := "Small"
+        if(t = "L") then
+          type := "Large"
+        end-if
+        writeln(strfmt("C" + c, 3), " opens ", type, " localized facility.")
       end-if
     end-do
     writeln
   end-do
 
-  forall(s in supply) do
-    writeln("Total prod for C", s, " is ", sum(c in customers) getsol(cen_prod(c,s)))
-  end-do
+  !! Print a number of tubes used to transport hydrogen from each centralized facility to each station
+  PrintResults("Number of tubes used from each facility to each refuelling station",
+                headers4, "c", customers, supply, n_tubes, true)
+
+  !! =================== Writing results to a csv format ===================
+  customer_header := "Customer,"
+  forall(c in customers) customer_header := customer_header + "c" + c + ","
+
+  !! Total production in each centralized facility
+  fopen("results/total_cen_prod.csv", F_OUTPUT)
+    writeln("Cen1,Cen2,Cen3")
+    forall(s in supply) do
+      write(strfmt(sum(c in customers) getsol(cen_prod(c,s)), 0, 6), ",")
+    end-do
+  fclose(F_OUTPUT)
+
+  WriteResultsToCSV(customer_header, "results/cover.csv", "c", customers, customers, cover, true)
+  WriteResultsToCSV("Customer,Cen1,Cen2,Cen3", "results/cen_prod.csv", "c", customers, supply, cen_prod, false)
+  WriteResultsToCSV("Customer,LocLarge,LocSmall", "results/loc_prod.csv", "c", customers, locFacType, loc_prod, false)
+  WriteResultsToCSV("Customer,LocLarge,LocSmall", "results/loc_open_at.csv", "c", customers, locFacType, loc_fac_open_at, true)
+
+  !! =================== Writing given data to a csv format ===================
+  WriteDataToCSV("Customer,Cen1,Cen2,Cen3", "data/cust_supply_dist.csv", "c", customers, supply, DistCustomerSupply)
+  WriteDataToCSV(customer_header, "data/cust_dist.csv", "c", customers, customers, DistCustomer)
+  WriteDataToCSV("Customer,X,Y", "data/site_location.csv", "c", customers, locationPoint, SiteLocation)
+  WriteDataToCSV("Supply,X,Y", "data/supply_location.csv", "Cen", supply, locationPoint, SupplyLocation)
+  WriteDataToCSV(customer_header, "data/can_cover.csv", "c", customers, customers, canCover)
+
+
+  !! =================== Procedures ===================
+  procedure PrintTitle(title:string)
+    banner := "====="
+    enclosed := ""
+    forall(i in 1..getsize(title)) enclosed += "="
+    enclosed += banner + banner + "=="
+
+    writeln(enclosed)  !! print first line
+    writeln(banner, " ", title, " ", banner)  !! print title
+    writeln(enclosed)  !! print last line
+  end-procedure
+
+  procedure PrintResults(title:string, header:array(range) of string, row_prefix:string, first_iter:range, sec_iter:range,
+                          objToPrint:array(range, range) of mpvar, print_int:boolean)
+    declarations
+      sep = " | "
+      col_length: array(1..getsize(header)) of integer
+    end-declarations
+
+    line_length := 0
+    decimal_points := 6
+    if(print_int) then
+      decimal_points := 0
+    end-if
+
+    max_col_length := 12
+    if(print_int) then
+      max_col_length := 2
+    end-if
+
+    writeln
+    PrintTitle(title)
+    !! print table header
+    forall(i in 1..getsize(header)) do
+      space := maxlist(getsize(header(i)), max_col_length)
+      write(strfmt(header(i), space), sep)
+      line_length += space + getsize(sep)
+      col_length(i) := space
+    end-do
+    writeln
+
+    !! print line sep
+    forall(i in 1..line_length) write("-")
+    writeln
+
+    !! print data
+    forall(i in first_iter) do
+      write(strfmt(row_prefix + i, col_length(1)), sep)
+      forall(j in sec_iter) do
+        write(strfmt(abs(getsol(objToPrint(i,j))), col_length(j+1), decimal_points), sep)
+      end-do
+      writeln
+    end-do
+
+    !! print endling line
+    forall(i in 1..line_length) write("-")
+    writeln
+  end-procedure
+
+  procedure PrintResults(title:string, header:array(range) of string, row_prefix:string, first_iter:range, sec_iter:set of string,
+                          objToPrint:array(range, set of string) of mpvar, print_int:boolean)
+    declarations
+      sep = " | "
+      col_length: array(1..getsize(header)) of integer
+    end-declarations
+
+    line_length := 0
+    decimal_points := 6
+    if(print_int) then
+      decimal_points := 0
+    end-if
+
+    max_col_length := 12
+    if(print_int) then
+      max_col_length := 2
+    end-if
+
+    writeln
+    PrintTitle(title)
+    !! print table header
+    forall(i in 1..getsize(header)) do
+      space := maxlist(getsize(header(i)), max_col_length)
+      write(strfmt(header(i), space), sep)
+      line_length += space + getsize(sep)
+      col_length(i) := space
+    end-do
+    writeln
+
+    !! print line sep
+    forall(i in 1..line_length) write("-")
+    writeln
+
+    !! print data
+    forall(i in first_iter) do
+      write(strfmt(row_prefix + i, col_length(1)), sep)
+      col := 1
+      forall(j in sec_iter) do
+        col += 1
+        write(strfmt(abs(getsol(objToPrint(i,j))), col_length(col), decimal_points), sep)
+      end-do
+      writeln
+    end-do
+
+    !! print endling line
+    forall(i in 1..line_length) write("-")
+    writeln
+  end-procedure
+
+  procedure WriteResultsToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:range, objToReadFrom:array(range, range) of mpvar, print_int:boolean)
+    decimal_points := 6
+    if(print_int) then
+      decimal_points := 0
+    end-if
+    
+    fopen(filename, F_OUTPUT)
+      writeln(header)
+      forall(i in first_iter) do
+  	    write(row_prefix, i, ",")
+  	    forall(j in sec_iter) do
+    	    write(strfmt(abs(getsol(objToReadFrom(i,j))), 0, decimal_points), ",")
+    	  end-do
+    	  writeln
+  	  end-do
+    fclose(F_OUTPUT)
+  end-procedure
+
+  procedure WriteResultsToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:set of string, objToReadFrom:array(range, set of string) of mpvar, print_int:boolean)
+    decimal_points := 6
+    if(print_int) then
+      decimal_points := 0
+    end-if
+    
+    fopen(filename, F_OUTPUT)
+      writeln(header)
+      forall(i in first_iter) do
+  	    write(row_prefix, i, ",")
+  	    forall(j in sec_iter) do
+    	    write(strfmt(abs(getsol(objToReadFrom(i,j))), 0, decimal_points), ",")
+    	  end-do
+    	  writeln
+  	  end-do
+    fclose(F_OUTPUT)
+  end-procedure
+
+  procedure WriteDataToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:range, objToReadFrom:array(range, range) of real)
+    fopen(filename, F_OUTPUT)
+      writeln(header)
+      forall(i in first_iter) do
+  	    write(row_prefix, i, ",")
+  	    forall(j in sec_iter) do
+    	    write(objToReadFrom(i,j), ",")
+    	  end-do
+    	  writeln
+  	  end-do
+    fclose(F_OUTPUT)
+  end-procedure
+
+  procedure WriteDataToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:range, objToReadFrom:array(range, range) of integer)
+    fopen(filename, F_OUTPUT)
+      writeln(header)
+      forall(i in first_iter) do
+  	    write(row_prefix, i, ",")
+  	    forall(j in sec_iter) do
+    	    write(objToReadFrom(i,j), ",")
+    	  end-do
+    	  writeln
+  	  end-do
+    fclose(F_OUTPUT)
+  end-procedure
 end-model
