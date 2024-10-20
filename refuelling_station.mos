@@ -54,6 +54,8 @@ model RefuellingStation
     LocProdCost: real
     !! CusOpenCost is a cost for opening each refuelling station.
     CusOpenCost: real
+    !! CoveringRange is a range that all stations within can cover the demand for each other
+    CoveringRange: real
 
     !! canCover tells if the first refuelling station can cover the second refuelling station (1 = can cover, 0 otherwise).
     !! e.g. canCover(c1,c2) = 1 means that refuelling station c1 can cover for refuelling station c2.
@@ -85,12 +87,12 @@ model RefuellingStation
   initialisations from "Dataset1_N25.txt"
     Demand DistCustomerSupply DistCustomer locFacType LocProdLimit MinLocProd CenProdLimit
     MaxTubePerSite TubeCap CenOpenCost TubeTransCost EmptyTubeCostReduction CenProdCost
-    LocOpenCost LocProdCost CusOpenCost SiteLocation SupplyLocation
+    LocOpenCost LocProdCost CusOpenCost SiteLocation SupplyLocation CoveringRange
   end-initialisations
 
   !! Calculate the cover range for each refuelling station
   forall(c1 in customers, c2 in customers) do
-    if(DistCustomer(c1,c2) <= 20) then
+    if(DistCustomer(c1,c2) <= CoveringRange) then
       canCover(c1,c2) := 1
     else
       canCover(c1,c2) := 0
@@ -214,6 +216,7 @@ model RefuellingStation
   h5 := "Centralized Facility Production Cost"
   h6 := "Localized Facility Production Cost"
   h7 := "Transportation Cost"
+  h8 := "Total Cost"
 
   PrintTitle("======== Total Cost from Each Source ========")
   writeln(strfmt("Source", 38), " | ", strfmt("Cost (£)", 10), " | ")
@@ -228,6 +231,9 @@ model RefuellingStation
   writeln(strfmt(h7, 38), " | ", strfmt(trans_cost, 10, 2), " | ")
   forall(i in 1..54) write("-")
   writeln
+  writeln(strfmt(h8, 38), " | ", strfmt(getobjval, 10, 2), " | ")
+  forall(i in 1..54) write("-")
+  writeln
 
   !! Write each cost to a csv file
   fopen(results_dir + "cost.csv", F_OUTPUT)
@@ -239,6 +245,7 @@ model RefuellingStation
     writeln(h5, ",", strfmt(cen_prod_cost, 0, 2))
     writeln(h6, ",", strfmt(loc_prod_cost, 0, 2))
     writeln(h7, ",", strfmt(trans_cost, 0, 2))
+    writeln(h8, ",", strfmt(getobjval, 0, 2))
   fclose(F_OUTPUT)
 
   declarations

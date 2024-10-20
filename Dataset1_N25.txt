@@ -108,3 +108,5 @@ LocOpenCost: [6000 3500]
 LocProdCost: 6 !! £ per kg
 
 CusOpenCost: 50000
+
+CoveringRange: 20
