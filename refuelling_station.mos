@@ -1,5 +1,6 @@
 model RefuellingStation
   uses "mmxprs"
+  uses "mmsystem"  !! mmsystem is used to create a new folder for storing csv files
 
   declarations
     nbCustomers: integer  !! number of refuelling stations
@@ -187,6 +188,14 @@ model RefuellingStation
 
 
   !! ==================== Printing Results ====================
+  !! Crate new folders to store csv files
+  makedir("results")
+  makedir("data")
+
+  writeln("==================== Printing Results ====================")
+  writeln
+  
+  !! Calculate each cost
   cen_open_cost := sum(s in supply) (getsol(cen_fac_open(s)) * CenOpenCost)
   l_loc_open_cost := sum(c in customers) (getsol(loc_fac_open_at(c,"L")) * LocOpenCost("L"))
   s_loc_open_cost := sum(c in customers) (getsol(loc_fac_open_at(c,"S")) * LocOpenCost("S"))
@@ -194,27 +203,40 @@ model RefuellingStation
   cen_prod_cost := sum(c in customers, s in supply) (getsol(cen_prod(c,s)) * CenProdCost)
   loc_prod_cost := sum(c in customers, t in locFacType) (getsol(loc_prod(c,t)) * LocProdCost)
   trans_cost := sum(c in customers, s in supply) (getsol(n_tubes(c,s)) * DistCustomerSupply(c,s) * (2 - EmptyTubeCostReduction) * TubeTransCost)
-                
-  writeln("==================== Printing Results ====================")
+
+  !! Print each cost
+  h1 := "Refueling Station Opening Cost"
+  h2 := "Centralized Facility Opening Cost"
+  h3 := "Large Localized Facility Opening Cost"
+  h4 := "Small Localized Facility Opening Cost"
+  h5 := "Centralized Facility Production Cost"
+  h6 := "Localized Facility Production Cost"
+  h7 := "Transportation Cost"
+
+  PrintTitle("======== Total Cost from Each Source ========")
+  writeln(strfmt("Source", 38), " | ", strfmt("Cost (£)", 10), " | ")
+  forall(i in 1..54) write("-")
   writeln
-  writeln("The refuelling station opening cost is ", strfmt(cus_open_cost, 0, 2), " £.")
-  writeln("The centralized facility opening cost is ", strfmt(cen_open_cost, 0, 2), " £.")
-  writeln("The large localized facility opening cost is ", strfmt(l_loc_open_cost, 0, 2), " £.")
-  writeln("The small localized facility opening cost is ", strfmt(s_loc_open_cost, 0, 2), " £.")
-  writeln("The centralized facility production cost is ", strfmt(cen_prod_cost, 0, 2), " £.")
-  writeln("The localized facility production cost is ", strfmt(loc_prod_cost, 0, 2), " £.")
-  writeln("The transportation cost is ", strfmt(trans_cost, 0, 2), " £.")
-  writeln("The total cost is ", strfmt(getobjval, 0, 2), " £.")
+  writeln(strfmt(h1, 38), " | ", strfmt(cus_open_cost, 10, 2), " | ")
+  writeln(strfmt(h2, 38), " | ", strfmt(cen_open_cost, 10, 2), " | ")
+  writeln(strfmt(h3, 38), " | ", strfmt(l_loc_open_cost, 10, 2), " | ")
+  writeln(strfmt(h4, 38), " | ", strfmt(s_loc_open_cost, 10, 2), " | ")
+  writeln(strfmt(h5, 38), " | ", strfmt(cen_prod_cost, 10, 2), " | ")
+  writeln(strfmt(h6, 38), " | ", strfmt(loc_prod_cost, 10, 2), " | ")
+  writeln(strfmt(h7, 38), " | ", strfmt(trans_cost, 10, 2), " | ")
+  forall(i in 1..54) write("-")
   writeln
-  
+
+  !! Write each cost to a csv file
   fopen("results/cost.csv", F_OUTPUT)
     writeln("Source,Cost")
-    writeln("Refueling Station Opening Cost,", strfmt(cus_open_cost, 0, 2))
-    writeln("Centralized Facility Opening Cost,", strfmt(cen_open_cost, 0, 2))
-    writeln("Large Localized Facility Opening Cost,", strfmt(l_loc_open_cost, 0, 2))
-    writeln("Small Localized Facility Opening Cost,", strfmt(s_loc_open_cost, 0, 2))
-    writeln("Centralized Facility Production Cost,", strfmt(cen_prod_cost, 0, 2))
-    writeln("Localized Facility Production Cost,", strfmt(loc_prod_cost, 0, 2))
+    writeln(h1, ",", strfmt(cus_open_cost, 0, 2))
+    writeln(h2, ",", strfmt(cen_open_cost, 0, 2))
+    writeln(h3, ",", strfmt(l_loc_open_cost, 0, 2))
+    writeln(h4, ",", strfmt(s_loc_open_cost, 0, 2))
+    writeln(h5, ",", strfmt(cen_prod_cost, 0, 2))
+    writeln(h6, ",", strfmt(loc_prod_cost, 0, 2))
+    writeln(h7, ",", strfmt(trans_cost, 0, 2))
   fclose(F_OUTPUT)
 
   declarations
@@ -223,17 +245,17 @@ model RefuellingStation
   end-declarations
 
   headers4(1) := "Customer"
-  headers4(2) := "Cen1"
-  headers4(3) := "Cen2"
-  headers4(4) := "Cen3"
+  headers4(2) := "Cen1 (kg)"
+  headers4(3) := "Cen2 (kg)"
+  headers4(4) := "Cen3 (kg)"
 
   !! Print total production sending from centralized facilities to each refuelling station
   PrintResults("Total production from centralized facilities to each refuelling station",
                 headers4, "c", customers, supply, cen_prod, false)
 
   headers3(1) := "Customer"
-  headers3(2) := "Loc (Large)"
-  headers3(3) := "Loc (Small)"
+  headers3(2) := "Large Loc (kg)"
+  headers3(3) := "Small Loc (kg)"
 
   !! Print total production in each localized facilities
   PrintResults("Total production in localized facilities",
