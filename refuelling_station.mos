@@ -189,8 +189,10 @@ model RefuellingStation
 
   !! ==================== Printing Results ====================
   !! Crate new folders to store csv files
-  makedir("results")
-  makedir("data")
+  results_dir := "results/"
+  data_dir := "data/"
+  makedir(results_dir)
+  makedir(data_dir)
 
   writeln("==================== Printing Results ====================")
   writeln
@@ -228,7 +230,7 @@ model RefuellingStation
   writeln
 
   !! Write each cost to a csv file
-  fopen("results/cost.csv", F_OUTPUT)
+  fopen(results_dir + "cost.csv", F_OUTPUT)
     writeln("Source,Cost")
     writeln(h1, ",", strfmt(cus_open_cost, 0, 2))
     writeln(h2, ",", strfmt(cen_open_cost, 0, 2))
@@ -287,25 +289,25 @@ model RefuellingStation
   forall(c in customers) customer_header := customer_header + "c" + c + ","
 
   !! Total production in each centralized facility
-  fopen("results/total_cen_prod.csv", F_OUTPUT)
+  fopen(results_dir + "total_cen_prod.csv", F_OUTPUT)
     writeln("Cen1,Cen2,Cen3")
     forall(s in supply) do
       write(strfmt(sum(c in customers) getsol(cen_prod(c,s)), 0, 6), ",")
     end-do
   fclose(F_OUTPUT)
 
-  WriteResultsToCSV(customer_header, "results/cover.csv", "c", customers, customers, cover, true)
-  WriteResultsToCSV("Customer,Cen1,Cen2,Cen3", "results/cen_prod.csv", "c", customers, supply, cen_prod, false)
-  WriteResultsToCSV("Customer,LocLarge,LocSmall", "results/loc_prod.csv", "c", customers, locFacType, loc_prod, false)
-  WriteResultsToCSV("Customer,LocLarge,LocSmall", "results/loc_open_at.csv", "c", customers, locFacType, loc_fac_open_at, true)
+  WriteResultsToCSV(customer_header, "cover.csv", "c", customers, customers, cover, true)
+  WriteResultsToCSV("Customer,Cen1,Cen2,Cen3", "cen_prod.csv", "c", customers, supply, cen_prod, false)
+  WriteResultsToCSV("Customer,LocLarge,LocSmall", "loc_prod.csv", "c", customers, locFacType, loc_prod, false)
+  WriteResultsToCSV("Customer,LocLarge,LocSmall", "loc_open_at.csv", "c", customers, locFacType, loc_fac_open_at, true)
 
 
   !! =================== Writing given data to a csv format ===================
-  WriteDataToCSV("Customer,Cen1,Cen2,Cen3", "data/cust_supply_dist.csv", "c", customers, supply, DistCustomerSupply)
-  WriteDataToCSV(customer_header, "data/cust_dist.csv", "c", customers, customers, DistCustomer)
-  WriteDataToCSV("Customer,X,Y", "data/site_location.csv", "c", customers, locationPoint, SiteLocation)
-  WriteDataToCSV("Supply,X,Y", "data/supply_location.csv", "Cen", supply, locationPoint, SupplyLocation)
-  WriteDataToCSV(customer_header, "data/can_cover.csv", "c", customers, customers, canCover)
+  WriteDataToCSV("Customer,Cen1,Cen2,Cen3", "cust_supply_dist.csv", "c", customers, supply, DistCustomerSupply)
+  WriteDataToCSV(customer_header, "cust_dist.csv", "c", customers, customers, DistCustomer)
+  WriteDataToCSV("Customer,X,Y", "site_location.csv", "c", customers, locationPoint, SiteLocation)
+  WriteDataToCSV("Supply,X,Y", "supply_location.csv", "Cen", supply, locationPoint, SupplyLocation)
+  WriteDataToCSV(customer_header, "can_cover.csv", "c", customers, customers, canCover)
 
 
   !! =================== Procedures ===================
@@ -422,7 +424,7 @@ model RefuellingStation
       decimal_points := 0
     end-if
 
-    fopen(filename, F_OUTPUT)
+    fopen(results_dir + filename, F_OUTPUT)
       writeln(header)
       forall(i in first_iter) do
   	    write(row_prefix, i, ",")
@@ -440,7 +442,7 @@ model RefuellingStation
       decimal_points := 0
     end-if
 
-    fopen(filename, F_OUTPUT)
+    fopen(results_dir + filename, F_OUTPUT)
       writeln(header)
       forall(i in first_iter) do
   	    write(row_prefix, i, ",")
@@ -453,7 +455,7 @@ model RefuellingStation
   end-procedure
 
   procedure WriteDataToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:range, objToReadFrom:array(range, range) of real)
-    fopen(filename, F_OUTPUT)
+    fopen(data_dir + filename, F_OUTPUT)
       writeln(header)
       forall(i in first_iter) do
   	    write(row_prefix, i, ",")
@@ -466,7 +468,7 @@ model RefuellingStation
   end-procedure
 
   procedure WriteDataToCSV(header:string, filename:string, row_prefix:string, first_iter:range, sec_iter:range, objToReadFrom:array(range, range) of integer)
-    fopen(filename, F_OUTPUT)
+    fopen(data_dir + filename, F_OUTPUT)
       writeln(header)
       forall(i in first_iter) do
   	    write(row_prefix, i, ",")
